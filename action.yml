@@ -11,7 +11,12 @@ branding:
 
 inputs:
   graph:
-    description: "Path to the saved graph (noodle-graph.json) in your repo."
+    description: >-
+      The graph to run: either a path to a saved graph (noodle-graph.json) in
+      your repo, or a nanoodle share link — a full https:// share URL, a
+      da.gd/TinyURL short link, or a bare #g=/#j=/#a= fragment. Paste the link
+      you get from the editor's Share button and CI runs that pipeline; no file
+      needed.
     required: true
   api-key:
     description: >-
@@ -40,9 +45,11 @@ inputs:
     required: false
     default: ""
   nanoodle-version:
-    description: "Exact nanoodle CLI version to run (pinned, not floating)."
+    description: >-
+      Exact nanoodle CLI version to run (pinned, not floating). Share-link
+      graphs require >=0.2.0.
     required: false
-    default: "0.1.1"
+    default: "0.2.0"
 
 outputs:
   out-dir:
