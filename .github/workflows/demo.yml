@@ -1,0 +1,38 @@
+# ------------------------------------------------------------------
+# DEMO ONLY — this workflow SPENDS real NanoGPT balance on every run.
+# That is why it triggers on workflow_dispatch only (a manual button),
+# never on push. Set the NANOGPT_API_KEY repository secret first.
+# ------------------------------------------------------------------
+name: nanoodle demo
+
+on:
+  workflow_dispatch:
+    inputs:
+      idea:
+        description: "What should the image be about?"
+        required: false
+        default: "a cozy ramen shop on a rainy night"
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run nanoodle workflow (spends NanoGPT balance)
+        id: noodle
+        uses: ./ # in your repo: nanoodlecom/run-noodle-action@v1
+        with:
+          graph: examples/noodle-graph.json
+          api-key: ${{ secrets.NANOGPT_API_KEY }}
+          inputs: |
+            n1.text=${{ inputs.idea }}
+
+      - name: Show cost
+        run: echo "Run cost USD ${{ steps.noodle.outputs.cost-usd }}"
+
+      - name: Upload generated media
+        uses: actions/upload-artifact@v4
+        with:
+          name: nanoodle-out
+          path: ${{ steps.noodle.outputs.out-dir }}

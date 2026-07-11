@@ -1,0 +1,17 @@
+{
+  "name": "run-noodle-action",
+  "version": "0.1.0",
+  "private": true,
+  "description": "GitHub Action that runs a saved nanoodle workflow graph (noodle-graph.json) in CI via the NanoGPT API.",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "test": "node --test \"test/**/*.test.mjs\""
+  },
+  "devDependencies": {
+    "nanoodle": "0.1.1"
+  },
+  "license": "MIT"
+}
