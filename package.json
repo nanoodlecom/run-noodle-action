@@ -3,6 +3,14 @@
   "version": "0.1.0",
   "private": true,
   "description": "GitHub Action that runs a saved nanoodle workflow graph (noodle-graph.json) in CI via the NanoGPT API.",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nanoodlecom/run-noodle-action.git"
+  },
+  "homepage": "https://github.com/nanoodlecom/run-noodle-action#readme",
+  "bugs": {
+    "url": "https://github.com/nanoodlecom/run-noodle-action/issues"
+  },
   "type": "module",
   "engines": {
     "node": ">=20"

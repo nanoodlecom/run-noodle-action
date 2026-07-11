@@ -101,7 +101,8 @@ Media outputs are saved into `out-dir` named after their output key
 ## Marketplace
 
 Publishing to the GitHub Marketplace requires this repository to be public
-plus a `v1` release/tag. That is a post-public step — not done yet.
+plus a `v1` release/tag. The `v1` tag is pushed; the Marketplace listing
+itself is a post-public step — not done yet.
 
 ## License
 

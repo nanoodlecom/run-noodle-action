@@ -41,7 +41,7 @@ test("buildArgv assembles the nanoodle run command", () => {
   const argv = buildArgv({
     graph: "g.json",
     inputs: ["Text=hi", "n2.system=x"],
-    sets: ["n3.size=1k"],
+    sets: ["n3.size=1024x1024"],
     outDir: "out",
     timeoutMs: "60000",
     version: "0.1.1",
@@ -49,7 +49,7 @@ test("buildArgv assembles the nanoodle run command", () => {
   assert.deepEqual(argv, [
     "--yes", "nanoodle@0.1.1", "run", "g.json",
     "--input", "Text=hi", "--input", "n2.system=x",
-    "--set", "n3.size=1k",
+    "--set", "n3.size=1024x1024",
     "--out", "out", "--json",
     "--timeout", "60000",
   ]);

@@ -28,7 +28,7 @@ inputs:
   set:
     description: >-
       Setting overrides, one node.setting=value per line, e.g.
-      "n3.model=flux-dev" or "n3.size=1k".
+      "n3.model=flux-dev" or "n3.size=1024x1024".
     required: false
     default: ""
   out-dir:
@@ -58,7 +58,7 @@ outputs:
 runs:
   using: "composite"
   steps:
-    - uses: actions/setup-node@v4
+    - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
       with:
         node-version: "20"
     - id: run
