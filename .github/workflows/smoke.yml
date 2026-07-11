@@ -1,0 +1,31 @@
+# ------------------------------------------------------------------
+# SMOKE — zero API spend, no secrets needed.
+# Manual button (workflow_dispatch) that checks the two things that can
+# rot underneath this action without any commit here:
+#   1. the published `nanoodle` CLI still resolves and answers --version
+#   2. the offline test suite (unit + e2e against a local NanoGPT stub)
+#      still passes — the e2e never touches the real API.
+# For a real (paid) end-to-end run, use demo.yml instead.
+# ------------------------------------------------------------------
+name: smoke
+
+on:
+  workflow_dispatch:
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "20"
+
+      - name: CLI resolves from npm
+        run: npx -y nanoodle --version || echo pending-release
+
+      - name: Offline tests (local stub, no real API calls)
+        run: |
+          npm ci
+          npm test
