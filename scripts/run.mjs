@@ -18,6 +18,16 @@ import { pathToFileURL } from "node:url";
 import process from "node:process";
 
 /**
+ * True when `graph` is a nanoodle share link rather than a repo file path:
+ * an http(s) URL, or a bare #g=/#j=/#a= (or #ga=) fragment. Mirrors the
+ * `isShareRef` detection in nanoodle-js's share decoder — the CLI (>=0.2.0)
+ * resolves these itself, so the action passes them through untouched.
+ */
+export function isShareRef(s) {
+  return typeof s === "string" && (/^https?:\/\//i.test(s) || /^#?(ga|[gja])=/.test(s));
+}
+
+/**
  * Parse a multiline action input into ["KEY=VALUE", ...].
  * Blank lines and lines starting with '#' are skipped; other lines must
  * contain '=' with a non-empty key.
@@ -64,7 +74,7 @@ async function main() {
   const graph = process.env.INPUT_GRAPH;
   const apiKey = process.env.INPUT_API_KEY;
   const outDir = process.env.INPUT_OUT_DIR || "nanoodle-out";
-  const version = process.env.INPUT_NANOODLE_VERSION || "0.1.1";
+  const version = process.env.INPUT_NANOODLE_VERSION || "0.2.0";
   const timeoutMs = process.env.INPUT_TIMEOUT_MS || "";
 
   if (!graph) { console.error("run-noodle-action: 'graph' input is required"); process.exit(1); }
@@ -80,6 +90,7 @@ async function main() {
   }
 
   await mkdir(outDir, { recursive: true });
+  if (isShareRef(graph)) console.error("run-noodle-action: loading graph from a share link");
   const argv = buildArgv({ graph, inputs, sets, outDir, timeoutMs, version });
   console.error("running: npx " + argv.join(" ")); // argv never contains the key
 

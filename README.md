@@ -43,6 +43,25 @@ jobs:
 See [.github/workflows/demo.yml](.github/workflows/demo.yml) for a runnable
 example (workflow_dispatch only, for the same reason).
 
+### Run straight from a share link
+
+No file to commit — paste the link the editor's **Share** button gives you
+into `graph:` and CI runs that pipeline. A full URL, a short link, or a bare
+`#g=`/`#j=`/`#a=` fragment all work (needs `nanoodle-version >= 0.2.0`).
+
+```yaml
+      - id: noodle
+        uses: nanoodlecom/run-noodle-action@v1
+        with:
+          graph: https://nanoodle.com/#g=H4sIAAAA...   # your share link
+          api-key: ${{ secrets.NANOGPT_API_KEY }}
+          inputs: |
+            Text=release ${{ github.ref_name }} poster, bold, celebratory
+```
+
+Direct `#g=`/`#j=`/`#a=` links decode locally with no extra network hop;
+da.gd/TinyURL short links are followed to find the underlying fragment.
+
 ### The flow
 
 1. Design and test your workflow at [nanoodle.com](https://nanoodle.com) —
@@ -64,13 +83,13 @@ line or the logs.
 
 | input | required | default | description |
 |---|---|---|---|
-| `graph` | yes | — | Path to the saved `noodle-graph.json` in your repo. |
+| `graph` | yes | — | The graph to run — either a path to a saved `noodle-graph.json` in your repo, **or a nanoodle share link** (a full `https://` share URL, a da.gd/TinyURL short link, or a bare `#g=`/`#j=`/`#a=` fragment). Requires `nanoodle-version >= 0.2.0`. |
 | `api-key` | yes | — | NanoGPT API key — pass `${{ secrets.NANOGPT_API_KEY }}`. |
 | `inputs` | no | `""` | Workflow inputs, one `KEY=VALUE` per line. Blank lines and `#` comments are skipped. `@path` values read files, same as the CLI. |
 | `set` | no | `""` | Setting overrides, one `node.setting=value` per line (e.g. `n3.model=flux-dev`). |
 | `out-dir` | no | `nanoodle-out` | Where media outputs and the result JSON are written. |
 | `timeout-ms` | no | — | Overall run timeout in milliseconds. |
-| `nanoodle-version` | no | `0.1.1` | Exact CLI version to run — pinned, never floating. |
+| `nanoodle-version` | no | `0.2.0` | Exact CLI version to run — pinned, never floating. Share-link graphs need `>= 0.2.0`. |
 
 ## Outputs
 

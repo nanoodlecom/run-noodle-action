@@ -2,12 +2,12 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import http from "node:http";
 import { spawn } from "node:child_process";
-import { mkdtemp, readFile, writeFile, access } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, writeFile, access, chmod } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { parseLines, buildArgv } from "../scripts/run.mjs";
+import { parseLines, buildArgv, isShareRef } from "../scripts/run.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const RUN_MJS = join(HERE, "..", "scripts", "run.mjs");
@@ -35,6 +35,30 @@ test("parseLines rejects lines without =", () => {
   assert.throws(() => parseLines("=value-without-key"), /expected KEY=VALUE/);
 });
 
+/* ---------------- unit: isShareRef ---------------- */
+
+test("isShareRef accepts share links (URLs and #g=/#j=/#a= fragments)", () => {
+  assert.ok(isShareRef("https://nanoodle.com/#g=H4sIAAAA"));
+  assert.ok(isShareRef("http://nanoodle.com/#a=abc"));
+  assert.ok(isShareRef("https://da.gd/abc123"));       // short link — still an http(s) URL
+  assert.ok(isShareRef("#g=H4sIAAAA"));                // bare fragment, with leading #
+  assert.ok(isShareRef("g=H4sIAAAA"));                 // bare fragment, no leading #
+  assert.ok(isShareRef("#j=abc"));
+  assert.ok(isShareRef("#a=abc"));
+  assert.ok(isShareRef("#ga=abc"));                    // gzip+app variant
+});
+
+test("isShareRef rejects file paths and non-strings", () => {
+  assert.equal(isShareRef("art/noodle-graph.json"), false);
+  assert.equal(isShareRef("./graph.json"), false);
+  assert.equal(isShareRef("/abs/path/graph.json"), false);
+  assert.equal(isShareRef("graph.json"), false);
+  assert.equal(isShareRef(""), false);
+  assert.equal(isShareRef(undefined), false);
+  assert.equal(isShareRef(null), false);
+  assert.equal(isShareRef(42), false);
+});
+
 /* ---------------- unit: buildArgv ---------------- */
 
 test("buildArgv assembles the nanoodle run command", () => {
@@ -59,6 +83,14 @@ test("buildArgv omits --timeout when not given", () => {
   const argv = buildArgv({ graph: "g.json", outDir: "o", version: "0.1.1" });
   assert.deepEqual(argv, ["--yes", "nanoodle@0.1.1", "run", "g.json", "--out", "o", "--json"]);
   assert.ok(!argv.includes("--timeout"));
+});
+
+test("buildArgv passes a share URL through verbatim (special chars untouched)", () => {
+  const url = "https://nanoodle.com/#a=H4sI_AbC-dEf&x=1&y=2";
+  const argv = buildArgv({ graph: url, outDir: "out", version: "0.2.0" });
+  // the graph value is argv[3], byte-identical — no encoding, no splitting on # or &
+  assert.equal(argv[3], url);
+  assert.deepEqual(argv, ["--yes", "nanoodle@0.2.0", "run", url, "--out", "out", "--json"]);
 });
 
 /* ---------------- e2e: run.mjs against a local NanoGPT stub ---------------- */
@@ -153,4 +185,73 @@ test("e2e: run.mjs runs a graph via the stub and writes GITHUB_OUTPUT + out-dir"
   } finally {
     await stub.close();
   }
+});
+
+/* --------- e2e: a share URL reaches the CLI arg untouched, no exists-check ---------
+ *
+ * The 0.1.x CLI can't decode share URLs, so we can't round-trip one through the
+ * real binary yet (that lands with nanoodle 0.2.0). Instead we shadow `npx` on
+ * PATH with a tiny recorder that captures its argv and prints a valid --json
+ * result. This proves the action layer: the URL is passed to the CLI verbatim,
+ * the default version is 0.2.0, and nothing stats/rejects the "file" that
+ * doesn't exist. Fully offline. */
+test("e2e: run.mjs hands a share URL to the CLI verbatim and never stats it", { timeout: 30000, skip: process.platform === "win32" }, async () => {
+  const work = await mkdtemp(join(tmpdir(), "noodle-action-url-"));
+  const binDir = join(work, "bin");
+  const outDir = join(work, "out");
+  const ghOutput = join(work, "github_output.txt");
+  const argvOut = join(work, "npx-argv.json");
+  await writeFile(ghOutput, "");
+
+  // fake `npx`: record argv, emit a valid nanoodle --json result. CommonJS,
+  // since the file is extensionless (no package.json "type" nearby).
+  const fakeNpx = join(binDir, "npx");
+  await mkdir(binDir, { recursive: true });
+  await writeFile(fakeNpx, [
+    "#!/usr/bin/env node",
+    'const fs = require("fs");',
+    "const argv = process.argv.slice(2);",
+    'if (process.env.FAKE_NPX_ARGV_OUT) fs.writeFileSync(process.env.FAKE_NPX_ARGV_OUT, JSON.stringify(argv));',
+    'process.stdout.write(JSON.stringify({ outputs: { Text: "ok from fake cli" }, costUsd: 0.001, costExact: true }));',
+    "",
+  ].join("\n"));
+  await chmod(fakeNpx, 0o755);
+
+  const shareUrl = "https://nanoodle.com/#a=H4sI_AbC-dEf&x=1&y=2"; // has # and & — must survive
+  const child = spawn(process.execPath, [RUN_MJS], {
+    env: {
+      ...process.env,
+      PATH: `${binDir}:${process.env.PATH}`, // fake npx wins the PATH lookup
+      FAKE_NPX_ARGV_OUT: argvOut,
+      INPUT_GRAPH: shareUrl,
+      INPUT_API_KEY: "test-key-123",
+      INPUT_INPUTS: "",
+      INPUT_SET: "",
+      INPUT_OUT_DIR: outDir,
+      INPUT_TIMEOUT_MS: "",
+      GITHUB_OUTPUT: ghOutput,
+      // INPUT_NANOODLE_VERSION deliberately unset — asserts the 0.2.0 default
+    },
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  let stdout = "", stderr = "";
+  child.stdout.on("data", (d) => { stdout += d; });
+  child.stderr.on("data", (d) => { stderr += d; });
+  const code = await new Promise((resolve, reject) => {
+    child.on("error", reject);
+    child.on("close", resolve);
+  });
+  assert.equal(code, 0, `run.mjs exited ${code}\nstdout:\n${stdout}\nstderr:\n${stderr}`);
+
+  // the CLI received: --yes nanoodle@0.2.0 run <shareUrl> --out <outDir> --json
+  const cliArgv = JSON.parse(await readFile(argvOut, "utf8"));
+  assert.equal(cliArgv[1], "nanoodle@0.2.0", "default version is not 0.2.0: " + JSON.stringify(cliArgv));
+  assert.equal(cliArgv[2], "run");
+  assert.equal(cliArgv[3], shareUrl, "share URL was not passed through verbatim: " + JSON.stringify(cliArgv));
+  assert.ok(cliArgv.includes("--json"));
+
+  // the run succeeded and wrote outputs — the URL never tripped an exists/stat check
+  const gh = await readFile(ghOutput, "utf8");
+  assert.match(gh, /^cost-usd=0\.001$/m);
+  assert.match(gh, new RegExp(`^out-dir=${outDir.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "m"));
 });
