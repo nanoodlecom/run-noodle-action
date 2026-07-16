@@ -9,6 +9,13 @@ workflow.
 Wraps the zero-dependency [`nanoodle` CLI](https://github.com/nanoodlecom/nanoodle-js)
 (`npx nanoodle run`), pinned to an exact version.
 
+Over a bare `npx nanoodle run` step, this action passes your API key to the
+CLI only via the child process environment (never argv or logs), pins the CLI
+to an exact version you control, and exposes typed step outputs (`cost-usd`,
+`out-dir`, `result-json`). Not in CI? Run graphs directly with
+[nanoodle-js](https://github.com/nanoodlecom/nanoodle-js) (Node) or
+[nanoodle-py](https://github.com/nanoodlecom/nanoodle-py) (Python).
+
 > **This spends real money.** Every run bills your NanoGPT balance per
 > generation. Trigger it from `workflow_dispatch` or a release tag — never on
 > every push.
@@ -106,9 +113,11 @@ Media outputs are saved into `out-dir` named after their output key
 
 - **Feed-forward DAGs only** — that is all nanoodle graphs are; there are no
   loops or agents.
-- **Browser-only nodes are unsupported** (`resize`, `vframes`, `combine`,
-  `soundtrack`, `trim`, `extractaudio`) — the CLI fails fast before spending
-  anything if the graph contains one. See the
+- **Browser-only nodes are unsupported with the default nanoodle 0.2.x**
+  (`resize`, `vframes`, `combine`, `soundtrack`, `trim`, `extractaudio`) —
+  the CLI fails fast before spending anything if the graph contains one.
+  Newer nanoodle releases lift this restriction; once one is published to
+  npm, set `nanoodle-version` to it. See the
   [nanoodle-js docs](https://github.com/nanoodlecom/nanoodle-js#supported-nodes).
 - **Graphs must have models set.** The editor writes the models you chose
   into the JSON when you save — pick models in the editor before downloading,
