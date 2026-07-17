@@ -193,7 +193,7 @@ test("e2e: run.mjs runs a graph via the stub and writes GITHUB_OUTPUT + out-dir"
  * real binary yet (that lands with nanoodle 0.2.0). Instead we shadow `npx` on
  * PATH with a tiny recorder that captures its argv and prints a valid --json
  * result. This proves the action layer: the URL is passed to the CLI verbatim,
- * the default version is 0.2.0, and nothing stats/rejects the "file" that
+ * the default version is 0.4.0, and nothing stats/rejects the "file" that
  * doesn't exist. Fully offline. */
 test("e2e: run.mjs hands a share URL to the CLI verbatim and never stats it", { timeout: 30000, skip: process.platform === "win32" }, async () => {
   const work = await mkdtemp(join(tmpdir(), "noodle-action-url-"));
@@ -230,7 +230,7 @@ test("e2e: run.mjs hands a share URL to the CLI verbatim and never stats it", { 
       INPUT_OUT_DIR: outDir,
       INPUT_TIMEOUT_MS: "",
       GITHUB_OUTPUT: ghOutput,
-      // INPUT_NANOODLE_VERSION deliberately unset — asserts the 0.2.0 default
+      // INPUT_NANOODLE_VERSION deliberately unset — asserts the 0.4.0 default
     },
     stdio: ["ignore", "pipe", "pipe"],
   });
@@ -243,9 +243,9 @@ test("e2e: run.mjs hands a share URL to the CLI verbatim and never stats it", { 
   });
   assert.equal(code, 0, `run.mjs exited ${code}\nstdout:\n${stdout}\nstderr:\n${stderr}`);
 
-  // the CLI received: --yes nanoodle@0.2.0 run <shareUrl> --out <outDir> --json
+  // the CLI received: --yes nanoodle@0.4.0 run <shareUrl> --out <outDir> --json
   const cliArgv = JSON.parse(await readFile(argvOut, "utf8"));
-  assert.equal(cliArgv[1], "nanoodle@0.2.0", "default version is not 0.2.0: " + JSON.stringify(cliArgv));
+  assert.equal(cliArgv[1], "nanoodle@0.4.0", "default version is not 0.4.0: " + JSON.stringify(cliArgv));
   assert.equal(cliArgv[2], "run");
   assert.equal(cliArgv[3], shareUrl, "share URL was not passed through verbatim: " + JSON.stringify(cliArgv));
   assert.ok(cliArgv.includes("--json"));

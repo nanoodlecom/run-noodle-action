@@ -96,7 +96,7 @@ line or the logs.
 | `set` | no | `""` | Setting overrides, one `node.setting=value` per line (e.g. `n3.model=flux-dev`). |
 | `out-dir` | no | `nanoodle-out` | Where media outputs and the result JSON are written. |
 | `timeout-ms` | no | — | Overall run timeout in milliseconds. |
-| `nanoodle-version` | no | `0.2.0` | Exact CLI version to run — pinned, never floating. Share-link graphs need `>= 0.2.0`. |
+| `nanoodle-version` | no | `0.4.0` | Exact CLI version to run — pinned, never floating. Share-link graphs need `>= 0.2.0`; local media nodes need `>= 0.4.0`. |
 
 ## Outputs
 
@@ -113,11 +113,14 @@ Media outputs are saved into `out-dir` named after their output key
 
 - **Feed-forward DAGs only** — that is all nanoodle graphs are; there are no
   loops or agents.
-- **Browser-only nodes are unsupported with the default nanoodle 0.2.x**
-  (`resize`, `vframes`, `combine`, `soundtrack`, `trim`, `extractaudio`) —
-  the CLI fails fast before spending anything if the graph contains one.
-  Newer nanoodle releases lift this restriction; once one is published to
-  npm, set `nanoodle-version` to it. See the
+- **Some local media nodes need ffmpeg.** With the default nanoodle 0.4.0,
+  local media nodes (`resize`, `vframes`, `combine`, `soundtrack`, `trim`,
+  `extractaudio`) run headlessly: the CLI prefers a pure-JS path that matches
+  the browser (lossless mp4 remux, PCM-WAV trim, PNG resize) and falls back
+  to `ffmpeg` on `PATH` for everything else. ffmpeg is a soft dependency —
+  if a node needs it and it's missing, the CLI fails with a clear error. On
+  runners without it, add a step like `sudo apt-get install -y ffmpeg` before
+  this action. See the
   [nanoodle-js docs](https://github.com/nanoodlecom/nanoodle-js#supported-nodes).
 - **Graphs must have models set.** The editor writes the models you chose
   into the JSON when you save — pick models in the editor before downloading,

@@ -74,7 +74,7 @@ async function main() {
   const graph = process.env.INPUT_GRAPH;
   const apiKey = process.env.INPUT_API_KEY;
   const outDir = process.env.INPUT_OUT_DIR || "nanoodle-out";
-  const version = process.env.INPUT_NANOODLE_VERSION || "0.2.0";
+  const version = process.env.INPUT_NANOODLE_VERSION || "0.4.0";
   const timeoutMs = process.env.INPUT_TIMEOUT_MS || "";
 
   if (!graph) { console.error("run-noodle-action: 'graph' input is required"); process.exit(1); }

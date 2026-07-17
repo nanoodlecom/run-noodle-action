@@ -47,9 +47,9 @@ inputs:
   nanoodle-version:
     description: >-
       Exact nanoodle CLI version to run (pinned, not floating). Share-link
-      graphs require >=0.2.0.
+      graphs require >=0.2.0; local media nodes require >=0.4.0.
     required: false
-    default: "0.2.0"
+    default: "0.4.0"
 
 outputs:
   out-dir:
