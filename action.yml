@@ -41,7 +41,7 @@ inputs:
     required: false
     default: "nanoodle-out"
   timeout-ms:
-    description: "Overall run timeout in milliseconds (optional)."
+    description: "CLI lifecycle timeout in milliseconds, including package resolution and output saving (1–2147483647; optional)."
     required: false
     default: ""
   nanoodle-version:

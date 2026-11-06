@@ -12,7 +12,7 @@
  * flow only runs when this file is the entrypoint.
  */
 import { spawn } from "node:child_process";
-import { appendFile, mkdir, writeFile } from "node:fs/promises";
+import { appendFile, mkdir, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import process from "node:process";
@@ -70,6 +70,57 @@ async function writeOutputs(pairs) {
   await appendFile(file, text);
 }
 
+/** One attempt only: retries could repeat paid graph nodes. */
+async function runCli(argv, apiKey, timeoutMs) {
+  const npx = process.platform === "win32" ? "npx.cmd" : "npx";
+  const child = spawn(npx, argv, {
+    env: { ...process.env, NANOGPT_API_KEY: apiKey },
+    // Give npx and its CLI descendants a group so cancellation reaches both.
+    detached: process.platform !== "win32",
+    stdio: ["ignore", "pipe", "inherit"],
+  });
+  let stdout = "", stopped = null, forceTimer, timeoutTimer;
+  child.stdout.setEncoding("utf8");
+  child.stdout.on("data", (d) => { stdout += d; });
+  const kill = (signal) => {
+    if (!child.pid) return;
+    try {
+      if (process.platform === "win32") child.kill(signal);
+      else process.kill(-child.pid, signal);
+    } catch (e) {
+      if (e.code !== "ESRCH") throw e;
+    }
+  };
+  const stop = (reason) => {
+    if (stopped) return;
+    stopped = reason;
+    console.error(reason === "timeout"
+      ? `run-noodle-action: timed out after ${timeoutMs}ms`
+      : `run-noodle-action: received ${reason}; stopping nanoodle`);
+    kill(reason === "timeout" ? "SIGTERM" : reason);
+    forceTimer = setTimeout(() => kill("SIGKILL"), 5000);
+  };
+  const onTerm = () => stop("SIGTERM");
+  const onInt = () => stop("SIGINT");
+  process.on("SIGTERM", onTerm);
+  process.on("SIGINT", onInt);
+  if (timeoutMs) timeoutTimer = setTimeout(() => stop("timeout"), Number(timeoutMs));
+  try {
+    const { code, signal } = await new Promise((resolve, reject) => {
+      child.once("error", reject);
+      child.once("close", (code, signal) => resolve({ code, signal }));
+    });
+    // A CLI may handle termination and exit 0. Cancellation still means failure.
+    return { stdout, code, signal, stopped };
+  } finally {
+    clearTimeout(timeoutTimer);
+    clearTimeout(forceTimer);
+    if (stopped) kill("SIGKILL"); // remove descendants even if npx exited first
+    process.off("SIGTERM", onTerm);
+    process.off("SIGINT", onInt);
+  }
+}
+
 async function main() {
   const graph = process.env.INPUT_GRAPH;
   const apiKey = process.env.INPUT_API_KEY;
@@ -79,6 +130,13 @@ async function main() {
 
   if (!graph) { console.error("run-noodle-action: 'graph' input is required"); process.exit(1); }
   if (!apiKey) { console.error("run-noodle-action: 'api-key' input is required (pass a secret; it is never logged)"); process.exit(1); }
+  if (!/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/.test(version)) {
+    throw new Error("'nanoodle-version' must be an exact version such as 0.4.0");
+  }
+  if (timeoutMs && (!/^\d+$/.test(timeoutMs) || !Number.isSafeInteger(Number(timeoutMs)) ||
+    Number(timeoutMs) < 1 || Number(timeoutMs) > 2147483647)) {
+    throw new Error("'timeout-ms' must be an integer from 1 to 2147483647");
+  }
 
   let inputs, sets;
   try {
@@ -90,30 +148,26 @@ async function main() {
   }
 
   await mkdir(outDir, { recursive: true });
+  const resultPath = join(outDir, "nanoodle-result.json");
+  await rm(resultPath, { force: true }); // a failed attempt must not expose an older result
   if (isShareRef(graph)) console.error("run-noodle-action: loading graph from a share link");
   const argv = buildArgv({ graph, inputs, sets, outDir, timeoutMs, version });
   console.error("running: npx " + argv.join(" ")); // argv never contains the key
 
-  const npx = process.platform === "win32" ? "npx.cmd" : "npx";
-  const child = spawn(npx, argv, {
-    env: { ...process.env, NANOGPT_API_KEY: apiKey },
-    stdio: ["ignore", "pipe", "inherit"], // stdout = --json result; stderr (progress/errors) streams through
-  });
-  let stdout = "";
-  child.stdout.on("data", (d) => { stdout += d; });
-  const code = await new Promise((resolve, reject) => {
-    child.on("error", reject);
-    child.on("close", resolve);
-  });
-
-  const resultPath = join(outDir, "nanoodle-result.json");
+  const { stdout, code, signal, stopped } = await runCli(argv, apiKey, timeoutMs);
   let result = null;
   if (stdout.trim()) {
-    await writeFile(resultPath, stdout);
-    try { result = JSON.parse(stdout); } catch { /* non-JSON output (early CLI failure) */ }
+    try {
+      const parsed = JSON.parse(stdout);
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed) &&
+        parsed.outputs && typeof parsed.outputs === "object" && !Array.isArray(parsed.outputs)) {
+        result = parsed;
+      }
+    } catch { /* non-JSON output (early CLI failure) */ }
   }
 
   if (result) {
+    await writeFile(resultPath, stdout);
     await writeOutputs({
       "out-dir": outDir,
       "cost-usd": result.costUsd ?? "",
@@ -124,13 +178,18 @@ async function main() {
     }
   }
 
+  if (stopped) {
+    process.exitCode = stopped === "SIGTERM" ? 143 : stopped === "SIGINT" ? 130 : 1;
+    return;
+  }
   if (code !== 0) {
-    console.error(`run-noodle-action: nanoodle exited with code ${code}`);
-    process.exit(code || 1);
+    console.error(`run-noodle-action: nanoodle exited with ${signal ? `signal ${signal}` : `code ${code}`}`);
+    process.exitCode = code || 1;
+    return;
   }
   if (!result) {
-    console.error("run-noodle-action: no JSON result on stdout");
-    process.exit(1);
+    console.error("run-noodle-action: no valid JSON run summary on stdout (expected an object with outputs)");
+    process.exitCode = 1;
   }
 }
 
