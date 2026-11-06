@@ -95,7 +95,7 @@ line or the logs.
 | `inputs` | no | `""` | Workflow inputs, one `KEY=VALUE` per line. Blank lines and `#` comments are skipped. `@path` values read files, same as the CLI. |
 | `set` | no | `""` | Setting overrides, one `node.setting=value` per line (e.g. `n3.model=flux-dev`). |
 | `out-dir` | no | `nanoodle-out` | Where media outputs and the result JSON are written. |
-| `timeout-ms` | no | — | Overall run timeout in milliseconds. |
+| `timeout-ms` | no | — | Positive integer milliseconds (maximum 2147483647), covering package resolution, graph loading, execution and media saving. Termination allows up to five additional seconds before forced shutdown. |
 | `nanoodle-version` | no | `0.4.0` | Exact CLI version to run — pinned, never floating. Share-link graphs need `>= 0.2.0`; local media nodes need `>= 0.4.0`. |
 
 ## Outputs
@@ -108,6 +108,21 @@ line or the logs.
 
 Media outputs are saved into `out-dir` named after their output key
 (`Image.jpg`, `Song.mp3`, ...). Text outputs appear in the result JSON.
+
+Each invocation clears the previous `nanoodle-result.json` before launching the
+CLI. Only a valid JSON run summary publishes outputs. Valid partial results are
+saved even when the CLI fails; early failures or forced cancellation may leave
+no summary. Other files in `out-dir` are retained, so use a fresh directory if
+you need an artifact containing only this invocation's media.
+
+The action makes one CLI attempt and never automatically retries a failed or
+cancelled run. Re-running a workflow may repeat paid nodes. On POSIX runners,
+cancellation and timeouts stop the whole npx process group; a CLI that exits
+successfully while handling cancellation still produces a failed action step.
+The offline suite exercises this lifecycle on Linux.
+
+See [the state-machine audit](docs/state-machines.md) for the lifecycle inventory
+and regression coverage.
 
 ## Limitations
 

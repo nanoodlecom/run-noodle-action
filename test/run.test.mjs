@@ -143,7 +143,7 @@ test("e2e: run.mjs runs a graph via the stub and writes GITHUB_OUTPUT + out-dir"
         INPUT_SET: "",
         INPUT_OUT_DIR: outDir,
         INPUT_TIMEOUT_MS: "30000",
-        INPUT_NANOODLE_VERSION: "0.1.1",
+        INPUT_NANOODLE_VERSION: "0.4.0",
         GITHUB_OUTPUT: ghOutput,
         NANOGPT_BASE_URL: stub.url, // the CLI honors this — zero real spend
       },
