@@ -5,10 +5,48 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
+    outputs:
+      release: ${{ steps.release.outputs.status }}
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: "24.22.1"
       - run: npm ci
       - run: npm test
+      - name: Check the action version against published tags
+        id: release
+        if: github.repository == 'nanoodlecom/run-noodle-action'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          status=$(node scripts/release.mjs plan)
+          echo "Action release status is $status"
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+
+  publish:
+    name: Publish the tested action
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && github.repository == 'nanoodlecom/run-noodle-action' && (needs.test.outputs.release == 'publish' || needs.test.outputs.release == 'promote')
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    concurrency:
+      group: run-noodle-action-v1
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version-file: .nvmrc
+      - name: Publish the version and advance v1
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/release.mjs publish

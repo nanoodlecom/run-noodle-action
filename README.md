@@ -144,11 +144,19 @@ and regression coverage.
   nodes that completed (partial results and per-node costs are in the result
   JSON, and the step fails).
 
-## Marketplace
+## Releases
 
-Publishing to the GitHub Marketplace requires this repository to be public
-plus a `v1` release/tag. The `v1` tag is pushed; the Marketplace listing
-itself is a post-public step — not done yet.
+Bump `ACTION_VERSION` in the pull request when changing the action runtime.
+After the offline tests pass on `main`, CI publishes the versioned GitHub
+Release at the tested commit and advances `v1` to that same commit. Merges
+that preserve the released runtime and version leave existing tags pinned.
+
+If publishing is interrupted, rerun the failed job while the tested commit
+is current. The job verifies any version tag created by the previous run
+before continuing. It advances `v1` only if that ref still has the value it
+checked. A versioned tag also lets consumers opt into a fixed release.
+
+GitHub Marketplace listing is a separate publication step.
 
 ## License
 
