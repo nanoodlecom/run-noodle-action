@@ -63,14 +63,14 @@ test("the plan rejects downgrades and unpublished or divergent alias targets", (
   assert.throws(() => planRelease(state), /must point to a published release/);
 });
 
-test("publication creates the versioned release before attempting to advance v1", () => {
+test("publication advances v1 from the creation receipt even when the release list lags", () => {
   const state = releaseState();
   const plan = planRelease(state);
   const operations = [];
   const result = applyRelease(plan, source, {
     remote: "origin",
     refs: () => new Map(state.refs),
-    releases: () => state.releases,
+    releases: () => assert.fail("Do not re-read the release list after creation"),
     git: (...args) => {
       operations.push(args);
       const [target, ref] = args[3].split(":");
@@ -80,12 +80,16 @@ test("publication creates the versioned release before attempting to advance v1"
       operations.push(args);
       assert.equal(state.refs.get(candidate), source);
       assert.equal(state.refs.get(alias), base);
-      state.releases.push(published("v1.0.2"));
+      return JSON.stringify(published("v1.0.2"));
     },
   });
   assert.equal(result, "promoted");
   assert.deepEqual(operations[0], ["push", `--force-with-lease=${candidate}:`, "origin", `${source}:${candidate}`]);
-  assert.deepEqual(operations[1].slice(0, 3), ["release", "create", "v1.0.2"]);
+  assert.deepEqual(operations[1], [
+    "api", "repos/nanoodlecom/run-noodle-action/releases", "--method", "POST",
+    "--raw-field", "tag_name=v1.0.2", "--raw-field", `target_commitish=${source}`,
+    "--raw-field", "name=v1.0.2", "--field", "generate_release_notes=true",
+  ]);
   assert.deepEqual(operations[2], ["push", `--force-with-lease=${alias}:${base}`, "origin", `${source}:${alias}`]);
 });
 
@@ -99,12 +103,24 @@ test("a main advance during release creation keeps the earlier action live at v1
     releases: () => state.releases,
     git: () => assert.fail("Do not update v1 after main advances"),
     gh: () => {
-      state.releases.push(published("v1.0.2"));
       state.refs.set(main, "c".repeat(40));
+      return JSON.stringify(published("v1.0.2"));
     },
   });
   assert.equal(result, "superseded");
   assert.equal(state.refs.get(alias), base);
+});
+
+test("a draft creation receipt stops before promoting v1", () => {
+  const state = releaseState();
+  state.refs.set(candidate, source);
+  assert.throws(() => applyRelease(planRelease(state), source, {
+    remote: "origin",
+    refs: () => new Map(state.refs),
+    releases: () => assert.fail("Do not re-read the release list after creation"),
+    git: () => assert.fail("Do not promote a draft release"),
+    gh: () => JSON.stringify({ ...published("v1.0.2"), draft: true }),
+  }), /Expected a published GitHub Release/);
 });
 
 test("Git rejects an alias update with a stale expected ref", (t) => {

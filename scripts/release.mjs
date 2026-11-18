@@ -96,16 +96,21 @@ export function applyRelease(plan, source, { git, gh, refs, releases, remote }) 
   if (refs().get(mainRef) !== source) return "superseded";
 
   const versionRef = `refs/tags/${plan.tag}`;
+  let release;
   if (plan.status === "publish") {
     if (plan.createTag) pushRef(git, remote, plan.target, versionRef, "");
     if (commitAt(refs(), versionRef) !== plan.target) {
       throw new Error(`Version tag ${plan.tag} did not resolve to the tested commit`);
     }
-    gh("release", "create", plan.tag, "--repo", repository, "--verify-tag",
-      "--title", plan.tag, "--generate-notes");
+    // The release list can lag behind a successful creation.
+    release = JSON.parse(gh("api", `repos/${repository}/releases`, "--method", "POST",
+      "--raw-field", `tag_name=${plan.tag}`, "--raw-field", `target_commitish=${plan.target}`,
+      "--raw-field", `name=${plan.tag}`, "--field", "generate_release_notes=true"));
+  } else {
+    release = releases().find((record) => record.tag_name === plan.tag);
   }
 
-  if (!releases().some((record) => record.tag_name === plan.tag && isPublished(record))) {
+  if (release?.tag_name !== plan.tag || !isPublished(release)) {
     throw new Error(`Expected a published GitHub Release for ${plan.tag}`);
   }
   const observed = refs();
